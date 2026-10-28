@@ -1,4 +1,4 @@
-# 入荷チェック（v1.1.0）
+# 入荷チェック（v1.2.0）
 
 店舗間移動伝票の商品コードと、商品タグのバーコードを照合する入荷確認用Webアプリです。
 iPhone（Safari）・Android（Chrome）で動作し、「ホーム画面に追加」でアプリとして使えます。
@@ -13,7 +13,7 @@ iPhone（Safari）・Android（Chrome）で動作し、「ホーム画面に追�
 | vendor/zxing-0.21.3.min.js | バーコード読み取りライブラリ（ZXing, Apache-2.0） |
 | vendor/tesseract/ | 伝票の文字認識（Tesseract.js 5.1.1, Apache-2.0）と英数字の認識データ |
 | manifest.webmanifest | ホーム画面アイコン・アプリ名の設定 |
-| sw.js | オフライン起動用（更新時は中の CACHE 番号を上げる） |
+| sw.js | オフライン起動用（更新時は中の CACHE 番号と index.html の ?v= を上げる） |
 | icons/ | アプリアイコン |
 
 ## 使い方（概要）

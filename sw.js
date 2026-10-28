@@ -1,10 +1,10 @@
 // 入荷チェック service worker
 // 更新したら CACHE の番号を上げてください（例: v2）。次回起動時に新しいファイルへ切り替わります。
-const CACHE = "nyuka-check-v2";
+const CACHE = "nyuka-check-v3";
 // ライブラリ用（アプリ更新では消さない。ライブラリを入れ替えたときだけ番号を上げる）
 const VENDOR_CACHE = "nyuka-vendor-1";
 const FILES = [
-  "./", "./index.html", "./style.css", "./app.js", "./manifest.webmanifest",
+  "./", "./index.html", "./style.css?v=1.2.0", "./app.js?v=1.2.0", "./manifest.webmanifest",
   "./vendor/zxing-0.21.3.min.js", "./vendor/tesseract/tesseract.min.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"
 ];
@@ -26,10 +26,10 @@ self.addEventListener("fetch", e => {
     return;
   }
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, {cache: "no-cache"}).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return res;
-    }).catch(() => caches.match(e.request, {ignoreSearch:true}).then(r => r || caches.match("./index.html")))
+    }).catch(() => caches.match(e.request).then(r => r || caches.match("./index.html")))
   );
 });

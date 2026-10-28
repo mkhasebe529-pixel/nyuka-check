@@ -6,7 +6,7 @@
  */
 (() => {
 "use strict";
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 const STORE_KEY = "nyuka-check-v1";
 const $ = s => document.querySelector(s);
 
@@ -332,6 +332,7 @@ function getOcrWorker(){
       corePath: abs("vendor/tesseract/"),
       langPath: abs("vendor/tesseract/lang"),
       gzip: true,
+      cacheMethod: "none", // 認識データはアプリのキャッシュ(sw.js)だけに保存し、二重保存しない
       logger: m => { if(ocrProgress) ocrProgress(m); }
     }).then(async w => { await w.setParameters({tessedit_pageseg_mode: "11"}); return w; })
       .catch(e => { ocrWorkerPromise = null; throw e; });
@@ -385,11 +386,20 @@ function snippet(c){
 }
 function diff1(a, b){ if(a.length !== b.length) return false; let n=0; for(let i=0;i<a.length;i++) if(a[i]!==b[i] && ++n>1) return false; return true; }
 
+// 撮影した伝票写真（画面表示用・メモリ上のみ）を消す
+let docPhotoUrl = null;
+function clearDocPhoto(){
+  if(docPhotoUrl){ URL.revokeObjectURL(docPhotoUrl); docPhotoUrl = null; }
+  const t = $("#ocrThumb"); t.removeAttribute("src");
+  $("#ocrBox").hidden = true; $("#docStatus").textContent = ""; $("#ocrBar").style.width = "0";
+}
+
 async function readDoc(file, append){
   const st = $("#docStatus"), box = $("#ocrBox"), bar = $("#ocrBar");
-  box.hidden = false; st.className = "status"; bar.style.width = "0";
+  clearDocPhoto();
+  box.hidden = false; st.className = "status";
   $("#ocrBarWrap").hidden = false;
-  const url = URL.createObjectURL(file); $("#ocrThumb").src = url;
+  const url = URL.createObjectURL(file); $("#ocrThumb").src = url; docPhotoUrl = url;
   $("#docBtn").classList.add("busy");
   try{
     st.textContent = "画像を準備中…";
@@ -542,7 +552,7 @@ function twoTap(btn, fn){
   });
 }
 twoTap($("#resetScans"), () => { state.items.forEach(i => { i.status = "todo"; delete i.at; }); state.extras = []; $("#flash").hidden = true; $("#result").innerHTML = ""; render(); });
-twoTap($("#resetAll"), () => { state = emptyState(); $("#flash").hidden = true; $("#result").innerHTML = ""; $("#pasteStatus").textContent = ""; render(); });
+twoTap($("#resetAll"), () => { state = emptyState(); clearDocPhoto(); $("#flash").hidden = true; $("#result").innerHTML = ""; $("#pasteStatus").textContent = ""; render(); });
 
 // ---------- boot ----------
 $("#ver").textContent = ` v${APP_VERSION}`;
@@ -550,6 +560,8 @@ render();
 if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")){
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+// v1.1.0 で二重保存していた認識データ（IndexedDB）を削除
+try{ indexedDB.deleteDatabase("keyval-store"); }catch(e){}
 // テスト用フック
 window.__nyuka = {match, parsePaste, ean13ok, get state(){ return state; }};
 })();
