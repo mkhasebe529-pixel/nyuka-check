@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>入荷チェック</title>
+<meta name="theme-color" content="#1f3f73">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="入荷チェック">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap" id="main">
+  <header class="top">
+    <h1>入荷チェック</h1>
+    <span class="sub">店舗間移動伝票 × 商品バーコード照合</span>
+  </header>
+
+  <!-- STEP 1 -->
+  <section class="panel" aria-labelledby="s1">
+    <h2 id="s1"><span class="step">1</span>伝票の番号を取り込む</h2>
+    <dl class="meta" id="meta"></dl>
+    <details id="howto">
+      <summary>伝票の番号をコピーする方法</summary>
+      <div class="howto">
+        <p><b>iPhone</b>：カメラで伝票を撮影 → 写真アプリで開く → 右下の「テキスト認識」ボタン → 表全体を選択して「コピー」</p>
+        <p><b>Android</b>：伝票を撮影 → Googleフォトで開く → 「レンズ」→「テキスト」→ 全体を選択して「コピー」</p>
+        <p>コピーした文章をそのまま下に貼り付けてください。13桁の商品コードだけを取り出し、商品名や金額は無視します。</p>
+      </div>
+    </details>
+    <textarea id="pasteBox" placeholder="ここに貼り付け（長押し →「ペースト」）"></textarea>
+    <div class="row">
+      <button class="btn primary" id="pasteReplace" type="button">このリストで開始</button>
+      <button class="btn" id="pasteAppend" type="button">リストに追加</button>
+    </div>
+    <div class="status" id="pasteStatus" role="status"></div>
+  </section>
+
+  <!-- PROGRESS + STEP 2 -->
+  <section class="panel" aria-labelledby="s2">
+    <h2 id="s2"><span class="step">2</span>商品バーコードを読み取る</h2>
+    <div class="progress"><span class="count" id="cnt">0<small> / 0</small></span><span class="sub" id="cntSub"></span></div>
+    <div class="bar"><i id="barFill"></i></div>
+    <button class="btn primary big" id="startScan" type="button">連続読み取りを開始</button>
+    <form id="manualForm" class="row nowrap" autocomplete="off">
+      <input type="text" id="manualInput" inputmode="numeric" placeholder="番号入力（全桁 or 下4桁）" aria-label="商品番号の入力">
+      <button class="btn" type="submit">照合</button>
+    </form>
+    <div id="flash" class="flash" hidden role="status"></div>
+  </section>
+
+  <!-- LIST -->
+  <section class="panel" aria-labelledby="s3">
+    <div class="top"><h2 id="s3">商品リスト</h2><span class="sub">状態をタップで手動切替</span></div>
+    <div class="filters" role="group" aria-label="表示切替">
+      <button class="btn" type="button" data-f="all" aria-pressed="true">すべて</button>
+      <button class="btn" type="button" data-f="todo" aria-pressed="false">未確認</button>
+      <button class="btn" type="button" data-f="done" aria-pressed="false">確認済</button>
+    </div>
+    <ul class="list" id="list"></ul>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="panel" aria-labelledby="s4">
+    <h2 id="s4"><span class="step">3</span>漏れチェック</h2>
+    <button class="btn primary" id="checkBtn" type="button">照合結果を表示</button>
+    <div id="result" class="result"></div>
+  </section>
+
+  <div class="row">
+    <button class="btn" id="resetScans" type="button">読取結果だけリセット</button>
+    <button class="btn danger" id="resetAll" type="button">すべてクリア</button>
+  </div>
+  <p class="sub foot">データはこの端末の中だけに保存され、外部には送信されません。<span id="ver"></span></p>
+</div>
+
+<!-- SCANNER (full screen) -->
+<div id="scanner" hidden>
+  <video id="video" playsinline muted autoplay></video>
+  <canvas id="freeze" hidden></canvas>
+  <div class="shade"><div class="guide" id="guide"><i></i></div></div>
+  <div class="hud">
+    <button class="hbtn" id="closeScan" type="button" aria-label="読み取りを終了">終了</button>
+    <div class="hcount" id="hcount">0 / 0</div>
+    <button class="hbtn" id="torchBtn" type="button" hidden>ライト</button>
+  </div>
+  <div class="hint" id="hint">バーコードを枠に合わせてください</div>
+  <div id="verdict" class="verdict" hidden>
+    <div class="vbox">
+      <div class="vicon" id="vIcon"></div>
+      <div class="vtitle" id="vTitle"></div>
+      <div class="vcode" id="vCode"></div>
+      <div class="vsub" id="vSub"></div>
+      <button class="btn vnext" id="vNext" type="button">次へ</button>
+    </div>
+  </div>
+  <div id="camError" class="camerr" hidden></div>
+</div>
+
+<script src="vendor/zxing-0.21.3.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
