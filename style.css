@@ -80,6 +80,21 @@ textarea{min-height:96px;font-size:14px}
 .rv{font-size:18px;font-weight:700;padding:12px;border-radius:10px;text-align:center}
 .rv.ok{background:var(--ok-weak);color:var(--ok)} .rv.ng{background:var(--ng-weak);color:var(--ng)}
 
+.vh{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.tip{margin:0;font-size:13px;color:var(--muted)}
+label.btn{display:flex;align-items:center;justify-content:center}
+.ocr{display:flex;gap:12px;align-items:flex-start}
+.ocr img{width:84px;height:112px;object-fit:cover;border-radius:6px;border:1px solid var(--line);flex:0 0 auto;background:var(--bg)}
+.ocrside{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:8px}
+.bar.thin{height:6px}
+.bar.thin i{background:var(--ai)}
+.next{background:var(--ai);color:var(--on-ai);border-radius:12px;padding:12px 14px;font-weight:700;font-size:15px;display:flex;gap:10px;align-items:center}
+.next small{display:block;font-weight:400;font-size:12.5px;opacity:.85}
+.next .nicon{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:15px}
+.next.done{background:var(--ok);}
+.snip{display:block;max-width:100%;margin-top:4px;border-radius:4px;border:1px solid var(--line)}
+.item .body{min-width:0;display:flex;flex-direction:column;gap:4px}
+
 /* ===== scanner ===== */
 #scanner{position:fixed;inset:0;background:#000;z-index:100;overflow:hidden;color:#fff}
 #video,#freeze{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}

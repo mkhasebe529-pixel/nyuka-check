@@ -1,12 +1,12 @@
 /* 入荷チェック app.js
- * 1) 伝票テキスト（iPhoneテキスト認識 / Googleレンズでコピー）から13桁コードを抽出
+ * 1) 伝票を撮影 → 端末内の文字認識（Tesseract）で13桁コードを抽出（貼り付けも可）
  * 2) カメラで連続読み取り → 照合結果を映像の上に表示 → 自動で次へ
  * 3) 未確認・リスト外を一覧
  * データは localStorage のみに保存（外部送信なし）
  */
 (() => {
 "use strict";
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 const STORE_KEY = "nyuka-check-v1";
 const $ = s => document.querySelector(s);
 
@@ -63,6 +63,15 @@ function render(){
   ].filter(Boolean).join("　");
   $("#barFill").style.width = n ? (done / n * 100) + "%" : "0";
   $("#startScan").disabled = !n;
+  $("#docAddBtn").hidden = !n;
+  const ns = $("#nextStep"); ns.classList.toggle("done", !!n && done === n && !state.extras.length);
+  let nTitle, nSub, nIcon;
+  if(!n){ nIcon = "1"; nTitle = "伝票を撮影してください"; nSub = "下の「伝票を撮影」を押すとカメラが開きます"; }
+  else if(bad){ nIcon = "!"; nTitle = `番号の確認が ${bad} 件あります`; nSub = "リストの「要確認」をタップして、写真を見ながら直してください"; }
+  else if(!done){ nIcon = "2"; nTitle = `${n} 件を読み取りました`; nSub = "伝票の行数と合っていれば「連続読み取りを開始」"; }
+  else if(done < n){ nIcon = "2"; nTitle = `残り ${n - done} 点`; nSub = "「連続読み取りを開始」で続きを読み取れます"; }
+  else { nIcon = "3"; nTitle = state.extras.length ? `全 ${n} 点確認済（リスト外 ${state.extras.length} 点）` : `全 ${n} 点 確認済`; nSub = "「照合結果を表示」で最終確認してください"; }
+  ns.innerHTML = `<span class="nicon">${nIcon === "3" && !state.extras.length ? "✓" : nIcon}</span><span>${esc(nTitle)}<small>${esc(nSub)}</small></span>`;
   $("#hcount").textContent = `${done} / ${n}`;
 
   const ul = $("#list"); ul.innerHTML = "";
@@ -80,12 +89,13 @@ function render(){
     const body = it.editing
       ? `<input type="text" inputmode="numeric" id="edit-${idx}" value="${esc(it.code)}" data-editinput="${idx}" aria-label="番号の修正">`
       : `<span class="code">${codeHtml(it.code)}</span>`;
-    li.innerHTML = `<span class="no">${idx+1}</span>${body}${right}`;
+    const snip = (!ean13ok(it.code) && it.snip) ? `<img class="snip" src="${it.snip}" alt="伝票のこの番号の部分">` : "";
+    li.innerHTML = `<span class="no">${idx+1}</span><span class="body">${body}${snip}</span>${right}`;
     ul.appendChild(li);
   });
   if(!ul.children.length){
     ul.innerHTML = n ? `<li class="empty">該当する商品はありません</li>`
-      : `<li class="empty">伝票の番号を貼り付けると、ここにリストが表示されます。<br><button class="btn" type="button" id="demoBtn" style="margin-top:8px">サンプルデータで試す</button></li>`;
+      : `<li class="empty">伝票を撮影すると、ここに商品コードの一覧が表示されます。<br><button class="btn" type="button" id="demoBtn" style="margin-top:8px">サンプルデータで試す</button></li>`;
   }
   save();
 }
@@ -311,6 +321,145 @@ $("#manualForm").addEventListener("submit", e => {
   const r = match(v); flash(r); feedback(r.kind);
 });
 
+// ---------- 伝票の文字認識（端末内・Tesseract） ----------
+let ocrWorkerPromise = null;
+function abs(p){ return new URL(p, location.href).href; }
+function getOcrWorker(){
+  if(!ocrWorkerPromise){
+    if(!window.Tesseract) return Promise.reject(new Error("文字認識を読み込めませんでした"));
+    ocrWorkerPromise = window.Tesseract.createWorker("eng", 1, {
+      workerPath: abs("vendor/tesseract/worker.min.js"),
+      corePath: abs("vendor/tesseract/"),
+      langPath: abs("vendor/tesseract/lang"),
+      gzip: true,
+      logger: m => { if(ocrProgress) ocrProgress(m); }
+    }).then(async w => { await w.setParameters({tessedit_pageseg_mode: "11"}); return w; })
+      .catch(e => { ocrWorkerPromise = null; throw e; });
+  }
+  return ocrWorkerPromise;
+}
+let ocrProgress = null;
+
+// 画像をグレースケール＋コントラスト補正して指定幅へ
+function prepCanvas(im, width, enhance=true){
+  const s = Math.min(1, width / im.naturalWidth);
+  const w = Math.round(im.naturalWidth * s), h = Math.round(im.naturalHeight * s);
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d", {willReadFrequently:true});
+  ctx.drawImage(im, 0, 0, w, h);
+  if(!enhance) return cv;
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  const hist = new Uint32Array(256);
+  for(let i=0;i<d.length;i+=4){ const g = (d[i]*299 + d[i+1]*587 + d[i+2]*114) / 1000 | 0; d[i] = g; hist[g]++; }
+  const n = w*h; let lo = 0, hi = 255, acc = 0;
+  for(let i=0;i<256;i++){ acc += hist[i]; if(acc > n*0.01){ lo = i; break; } }
+  acc = 0; for(let i=255;i>=0;i--){ acc += hist[i]; if(acc > n*0.01){ hi = i; break; } }
+  const k = 255 / Math.max(1, hi - lo);
+  for(let i=0;i<d.length;i+=4){ const v = Math.max(0, Math.min(255, (d[i]-lo)*k)); d[i] = d[i+1] = d[i+2] = v; }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+const OCR_FIX = {"O":"0","o":"0","Q":"0","D":"0","l":"1","I":"1","i":"1","|":"1","!":"1","S":"5","s":"5","B":"8","Z":"2","z":"2"};
+function ocrCodes(data, cv){
+  const out = [];
+  for(const w of (data.words || [])){
+    const raw = String(w.text || "");
+    const digits = (raw.match(/\d/g) || []).length;
+    if(digits < 9) continue;
+    const fixed = raw.split("").map(c => OCR_FIX[c] ?? c).join("").replace(/[^\d]/g, "");
+    if(fixed.length < 12 || fixed.length > 13) continue;
+    out.push({code: fixed.length === 12 ? fixed : fixed, bbox: w.bbox, cv});
+  }
+  return out;
+}
+function snippet(c){
+  try{
+    const b = c.bbox, cv = c.cv, pad = 8;
+    const x = Math.max(0, b.x0 - pad), y = Math.max(0, b.y0 - pad);
+    const w = Math.min(cv.width - x, (b.x1 - b.x0) + pad*2 + 40), h = Math.min(cv.height - y, (b.y1 - b.y0) + pad*2);
+    const o = document.createElement("canvas"); const sc = Math.min(1, 320 / w);
+    o.width = Math.round(w*sc); o.height = Math.round(h*sc);
+    o.getContext("2d").drawImage(cv, x, y, w, h, 0, 0, o.width, o.height);
+    return o.toDataURL("image/jpeg", .8);
+  }catch(e){ return ""; }
+}
+function diff1(a, b){ if(a.length !== b.length) return false; let n=0; for(let i=0;i<a.length;i++) if(a[i]!==b[i] && ++n>1) return false; return true; }
+
+async function readDoc(file, append){
+  const st = $("#docStatus"), box = $("#ocrBox"), bar = $("#ocrBar");
+  box.hidden = false; st.className = "status"; bar.style.width = "0";
+  $("#ocrBarWrap").hidden = false;
+  const url = URL.createObjectURL(file); $("#ocrThumb").src = url;
+  $("#docBtn").classList.add("busy");
+  try{
+    st.textContent = "画像を準備中…";
+    const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("画像を開けませんでした")); i.src = url; });
+    const firstLoad = !ocrWorkerPromise;
+    if(firstLoad) st.textContent = "文字認識の準備中…（初回のみ数十秒かかります）";
+    let phase = 0, phases = 1;
+    ocrProgress = m => {
+      if(m.status === "recognizing text"){
+        bar.style.width = ((phase + m.progress) / phases * 100) + "%";
+        st.textContent = `商品コードを読み取り中… ${Math.round((phase + m.progress) / phases * 100)}%`;
+      } else if(firstLoad && /load|initializ/.test(m.status||"")){ st.textContent = "文字認識の準備中…（初回のみ数十秒かかります）"; }
+    };
+    const worker = await getOcrWorker();
+    // 1回目
+    const cv1 = prepCanvas(im, 1600, false);
+    let r1 = ocrCodes((await worker.recognize(cv1)).data, cv1);
+    let found = r1;
+    // チェックデジットが合わない番号があれば、解像度を変えてもう1回
+    if(!r1.length || r1.some(c => !ean13ok(c.code))){
+      phase = 1; phases = 2;
+      const cv2 = prepCanvas(im, 2000, true);
+      const r2 = ocrCodes((await worker.recognize(cv2)).data, cv2);
+      const valid = new Map();
+      [...r1, ...r2].forEach(c => { if(ean13ok(c.code) && !valid.has(c.code)) valid.set(c.code, c); });
+      const order = [];
+      const seen = new Set();
+      const pushC = c => { if(!seen.has(c.code)){ seen.add(c.code); order.push(c); } };
+      const base = r2.length > r1.length ? r2 : r1;
+      base.forEach(c => {
+        if(ean13ok(c.code)) pushC(c);
+        else { const fix = [...valid.keys()].find(v => diff1(v, c.code) || (c.code.length === 12 && v.endsWith(c.code))); if(fix) pushC(valid.get(fix)); else pushC(c); }
+      });
+      valid.forEach(c => pushC(c));
+      // 正しい番号と1桁違いの誤読は除外
+      found = order.filter(c => ean13ok(c.code) || ![...valid.keys()].some(v => diff1(v, c.code)));
+    }
+    bar.style.width = "100%";
+    if(!found.length){
+      st.className = "status err";
+      st.textContent = "商品コードが見つかりませんでした。伝票全体が写るよう、真上から明るい場所で撮り直してください。";
+      return;
+    }
+    const items = found.map(c => ({code: c.code, status:"todo", ...(ean13ok(c.code) ? {} : {snip: snippet(c)})}));
+    let added = 0;
+    if(append){
+      const have = new Set(state.items.map(i => i.code));
+      items.forEach(i => { if(!have.has(i.code)){ state.items.push(i); have.add(i.code); added++; } });
+    } else {
+      state = emptyState(); state.items = items; added = items.length;
+      $("#result").innerHTML = ""; $("#flash").hidden = true;
+    }
+    const bad = state.items.filter(i => !ean13ok(i.code)).length;
+    st.textContent = `${added} 件を読み取りました（合計 ${state.items.length} 件）。` +
+      (bad ? `「要確認」の ${bad} 件は写真を見て番号を直してください。` : "伝票の行数と合っているか確認してください。");
+    $("#ocrBarWrap").hidden = true;
+    filter = "all"; syncFilter(); render();
+  }catch(e){
+    st.className = "status err";
+    st.textContent = (e && e.message ? e.message + "。" : "") + "読み取りに失敗しました。もう一度撮影するか、下の「貼り付け」をお使いください。";
+  }finally{
+    ocrProgress = null; $("#docBtn").classList.remove("busy");
+  }
+}
+$("#docInput").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if(f) readDoc(f, false); });
+$("#docAdd").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if(f) readDoc(f, true); });
+// 撮影ボタンを押した時点で文字認識の準備を始めておく
+$("#docBtn").addEventListener("click", () => { unlockAudio(); getOcrWorker().catch(() => {}); });
+$("#docAddBtn").addEventListener("click", () => { getOcrWorker().catch(() => {}); });
+
 // ---------- paste ----------
 function applyPaste(replace){
   const {codes, meta} = parsePaste($("#pasteBox").value);
@@ -337,6 +486,18 @@ $("#pasteReplace").addEventListener("click", () => applyPaste(true));
 $("#pasteAppend").addEventListener("click", () => applyPaste(false));
 
 // ---------- list ----------
+$("#addForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const code = norm($("#addInput").value);
+  const st = $("#pasteStatus"); st.className = "status";
+  if(code.length !== 13){ st.className = "status err"; st.textContent = "13桁の番号を入力してください。"; return; }
+  if(state.items.some(i => i.code === code)){ st.textContent = "その番号はすでにリストにあります。"; return; }
+  state.items.push({code, status:"todo"});
+  state.extras = state.extras.filter(c => c !== code);
+  $("#addInput").value = "";
+  st.textContent = `${code} を追加しました（合計 ${state.items.length} 件）。` + (ean13ok(code) ? "" : "番号が正しくない可能性があります。");
+  render();
+});
 $("#list").addEventListener("click", e => {
   const t = e.target;
   if(t.id === "demoBtn"){
@@ -347,7 +508,7 @@ $("#list").addEventListener("click", e => {
   }
   if(t.dataset.tog != null){ const it = state.items[+t.dataset.tog]; it.status = isDone(it) ? "todo" : "manual"; render(); }
   else if(t.dataset.edit != null){ state.items[+t.dataset.edit].editing = true; render(); const inp = $("#edit-" + t.dataset.edit); inp && inp.focus(); }
-  else if(t.dataset.save != null){ const i = +t.dataset.save, it = state.items[i]; it.code = norm($("#edit-" + i).value) || it.code; delete it.editing; render(); }
+  else if(t.dataset.save != null){ const i = +t.dataset.save, it = state.items[i]; it.code = norm($("#edit-" + i).value) || it.code; delete it.editing; if(ean13ok(it.code)) delete it.snip; render(); }
 });
 $("#list").addEventListener("keydown", e => {
   if(e.key === "Enter" && e.target.dataset.editinput != null){ const b = document.querySelector(`[data-save="${e.target.dataset.editinput}"]`); b && b.click(); }

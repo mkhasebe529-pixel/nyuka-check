@@ -20,24 +20,38 @@
     <h1>入荷チェック</h1>
     <span class="sub">店舗間移動伝票 × 商品バーコード照合</span>
   </header>
+  <div class="next" id="nextStep" role="status"></div>
 
   <!-- STEP 1 -->
   <section class="panel" aria-labelledby="s1">
-    <h2 id="s1"><span class="step">1</span>伝票の番号を取り込む</h2>
+    <h2 id="s1"><span class="step">1</span>伝票を撮影する</h2>
     <dl class="meta" id="meta"></dl>
+    <p class="tip">伝票の商品コードの列が全部入るように、真上から明るい場所で撮影してください。</p>
+    <div class="row">
+      <label class="btn primary big" for="docInput" id="docBtn">伝票を撮影</label>
+      <label class="btn" for="docAdd" id="docAddBtn" hidden>次のページを追加</label>
+    </div>
+    <input type="file" id="docInput" accept="image/*" capture="environment" class="vh">
+    <input type="file" id="docAdd" accept="image/*" capture="environment" class="vh">
+    <div class="ocr" id="ocrBox" hidden>
+      <img id="ocrThumb" alt="撮影した伝票">
+      <div class="ocrside">
+        <div class="status" id="docStatus" role="status"></div>
+        <div class="bar thin" id="ocrBarWrap"><i id="ocrBar"></i></div>
+      </div>
+    </div>
     <details id="howto">
-      <summary>伝票の番号をコピーする方法</summary>
+      <summary>うまく読めないとき：文字をコピーして貼り付け</summary>
       <div class="howto">
-        <p><b>iPhone</b>：カメラで伝票を撮影 → 写真アプリで開く → 右下の「テキスト認識」ボタン → 表全体を選択して「コピー」</p>
-        <p><b>Android</b>：伝票を撮影 → Googleフォトで開く → 「レンズ」→「テキスト」→ 全体を選択して「コピー」</p>
-        <p>コピーした文章をそのまま下に貼り付けてください。13桁の商品コードだけを取り出し、商品名や金額は無視します。</p>
+        <p><b>iPhone</b>：写真アプリで伝票の写真を開く → 右下の「テキスト認識」ボタン → 表全体を選択して「コピー」</p>
+        <p><b>Android</b>：Googleフォトで開く → 「レンズ」→「テキスト」→ 全体を選択して「コピー」</p>
+      </div>
+      <textarea id="pasteBox" placeholder="ここに貼り付け（長押し →「ペースト」）"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="pasteReplace" type="button">このリストで開始</button>
+        <button class="btn" id="pasteAppend" type="button">リストに追加</button>
       </div>
     </details>
-    <textarea id="pasteBox" placeholder="ここに貼り付け（長押し →「ペースト」）"></textarea>
-    <div class="row">
-      <button class="btn primary" id="pasteReplace" type="button">このリストで開始</button>
-      <button class="btn" id="pasteAppend" type="button">リストに追加</button>
-    </div>
     <div class="status" id="pasteStatus" role="status"></div>
   </section>
 
@@ -63,6 +77,13 @@
       <button class="btn" type="button" data-f="done" aria-pressed="false">確認済</button>
     </div>
     <ul class="list" id="list"></ul>
+    <details id="addBox">
+      <summary>読み取れなかった番号をリストに追加</summary>
+      <form id="addForm" class="row nowrap" autocomplete="off" style="margin-top:8px">
+        <input type="text" id="addInput" inputmode="numeric" placeholder="13桁の商品コード" aria-label="追加する商品コード">
+        <button class="btn" type="submit">追加</button>
+      </form>
+    </details>
   </section>
 
   <!-- STEP 3 -->
@@ -103,6 +124,7 @@
 </div>
 
 <script src="vendor/zxing-0.21.3.min.js"></script>
+<script src="vendor/tesseract/tesseract.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
