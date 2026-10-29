@@ -1,10 +1,10 @@
 // 入荷チェック service worker
 // 更新したら CACHE の番号を上げてください（例: v2）。次回起動時に新しいファイルへ切り替わります。
-const CACHE = "nyuka-check-v3";
+const CACHE = "nyuka-check-v4";
 // ライブラリ用（アプリ更新では消さない。ライブラリを入れ替えたときだけ番号を上げる）
 const VENDOR_CACHE = "nyuka-vendor-1";
 const FILES = [
-  "./", "./index.html", "./style.css?v=1.2.0", "./app.js?v=1.2.0", "./manifest.webmanifest",
+  "./", "./index.html", "./style.css?v=1.3.0", "./app.js?v=1.3.0", "./manifest.webmanifest",
   "./vendor/zxing-0.21.3.min.js", "./vendor/tesseract/tesseract.min.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"
 ];

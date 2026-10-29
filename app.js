@@ -6,7 +6,7 @@
  */
 (() => {
 "use strict";
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 const STORE_KEY = "nyuka-check-v1";
 const $ = s => document.querySelector(s);
 
@@ -81,14 +81,14 @@ function render(){
     const li = document.createElement("li");
     li.className = "item" + (isDone(it) ? " isdone" : "");
     let right;
-    if(it.editing) right = `<button class="chip todo" type="button" data-save="${idx}">保存</button>`;
+    if(it.editing) right = `<span class="editbtns"><button class="chip todo" type="button" data-save="${idx}">保存</button><button class="chip bad" type="button" data-del="${idx}">削除</button></span>`;
     else if(!ean13ok(it.code)) right = `<button class="chip bad" type="button" data-edit="${idx}">要確認</button>`;
     else if(it.status === "done") right = `<button class="chip done" type="button" data-tog="${idx}">確認済</button>`;
     else if(it.status === "manual") right = `<button class="chip manual" type="button" data-tog="${idx}">手動済</button>`;
     else right = `<button class="chip todo" type="button" data-tog="${idx}">未確認</button>`;
     const body = it.editing
       ? `<input type="text" inputmode="numeric" id="edit-${idx}" value="${esc(it.code)}" data-editinput="${idx}" aria-label="番号の修正">`
-      : `<span class="code">${codeHtml(it.code)}</span>`;
+      : `<span class="code" data-edit="${idx}" role="button" tabindex="0" title="タップで修正・削除">${codeHtml(it.code)}</span>`;
     const snip = (!ean13ok(it.code) && it.snip) ? `<img class="snip" src="${it.snip}" alt="伝票のこの番号の部分">` : "";
     li.innerHTML = `<span class="no">${idx+1}</span><span class="body">${body}${snip}</span>${right}`;
     ul.appendChild(li);
@@ -445,15 +445,27 @@ async function readDoc(file, append){
     }
     const items = found.map(c => ({code: c.code, status:"todo", ...(ean13ok(c.code) ? {} : {snip: snippet(c)})}));
     let added = 0;
+    let dup = 0;
     if(append){
-      const have = new Set(state.items.map(i => i.code));
-      items.forEach(i => { if(!have.has(i.code)){ state.items.push(i); have.add(i.code); added++; } });
+      // 上下に分けて撮った時の重なり部分を除外
+      items.forEach(i => {
+        if(state.items.some(x => x.code === i.code)){ dup++; return; }
+        const iValid = ean13ok(i.code);
+        // 既にある正しい番号と1桁違いの誤読 → 同じ行とみなして除外
+        if(!iValid && state.items.some(x => ean13ok(x.code) && diff1(x.code, i.code))){ dup++; return; }
+        // 既にある「要確認」の番号を、今回正しく読めた番号で置き換え
+        if(iValid){
+          const near = state.items.find(x => !ean13ok(x.code) && diff1(x.code, i.code));
+          if(near){ near.code = i.code; delete near.snip; dup++; return; }
+        }
+        state.items.push(i); added++;
+      });
     } else {
       state = emptyState(); state.items = items; added = items.length;
       $("#result").innerHTML = ""; $("#flash").hidden = true;
     }
     const bad = state.items.filter(i => !ean13ok(i.code)).length;
-    st.textContent = `${added} 件を読み取りました（合計 ${state.items.length} 件）。` +
+    st.textContent = `${added} 件を読み取りました（合計 ${state.items.length} 件）。` + (dup ? `前の写真と重なっていた ${dup} 件はまとめました。` : "") +
       (bad ? `「要確認」の ${bad} 件は写真を見て番号を直してください。` : "伝票の行数と合っているか確認してください。");
     $("#ocrBarWrap").hidden = true;
     filter = "all"; syncFilter(); render();
@@ -518,6 +530,8 @@ $("#list").addEventListener("click", e => {
   }
   if(t.dataset.tog != null){ const it = state.items[+t.dataset.tog]; it.status = isDone(it) ? "todo" : "manual"; render(); }
   else if(t.dataset.edit != null){ state.items[+t.dataset.edit].editing = true; render(); const inp = $("#edit-" + t.dataset.edit); inp && inp.focus(); }
+  else if(t.closest("[data-edit]") && !t.dataset.tog){ const i = +t.closest("[data-edit]").dataset.edit; state.items.forEach(x => delete x.editing); state.items[i].editing = true; render(); const inp = $("#edit-" + i); inp && inp.focus(); }
+  else if(t.dataset.del != null){ const i = +t.dataset.del; const code = state.items[i].code; state.items.splice(i, 1); $("#pasteStatus").className = "status"; $("#pasteStatus").textContent = `${code} をリストから削除しました（合計 ${state.items.length} 件）。`; render(); }
   else if(t.dataset.save != null){ const i = +t.dataset.save, it = state.items[i]; it.code = norm($("#edit-" + i).value) || it.code; delete it.editing; if(ean13ok(it.code)) delete it.snip; render(); }
 });
 $("#list").addEventListener("keydown", e => {
