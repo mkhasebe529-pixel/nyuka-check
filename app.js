@@ -6,7 +6,7 @@
  */
 (() => {
 "use strict";
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.6.0";
 const STORE_KEY = "nyuka-check-v1";
 const $ = s => document.querySelector(s);
 
@@ -345,12 +345,18 @@ function getOcrWorker(){
 let ocrProgress = null;
 
 // 画像をグレースケール＋コントラスト補正して指定幅へ
-function prepCanvas(im, width, enhance=true){
-  const s = Math.min(1, width / im.naturalWidth);
-  const w = Math.round(im.naturalWidth * s), h = Math.round(im.naturalHeight * s);
+// rot: 0 / 90 / 270（横向きで保存された写真を立てて読む）
+function prepCanvas(im, width, enhance=true, rot=0){
+  const side = rot % 180 ? im.naturalHeight : im.naturalWidth;
+  const s = Math.min(1, width / side);
+  const iw = Math.round(im.naturalWidth * s), ih = Math.round(im.naturalHeight * s);
+  const w = rot % 180 ? ih : iw, h = rot % 180 ? iw : ih;
   const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
   const ctx = cv.getContext("2d", {willReadFrequently:true});
-  ctx.drawImage(im, 0, 0, w, h);
+  if(rot === 90){ ctx.translate(w, 0); ctx.rotate(Math.PI/2); }
+  else if(rot === 270){ ctx.translate(0, h); ctx.rotate(-Math.PI/2); }
+  ctx.drawImage(im, 0, 0, iw, ih);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   if(!enhance) return cv;
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   const hist = new Uint32Array(256);
@@ -417,14 +423,33 @@ async function readDoc(file, append){
       } else if(firstLoad && /load|initializ/.test(m.status||"")){ st.textContent = "文字認識の準備中…（初回のみ数十秒かかります）"; }
     };
     const worker = await getOcrWorker();
-    // 1回目
-    const cv1 = prepCanvas(im, 1600, false);
+    // 1回目（写真の向きが横になっていたら、90°・270°回して読み直し、いちばん多く読めた向きを使う）
+    const score = r => r.filter(c => ean13ok(c.code)).length;
+    let rot = 0;
+    let cv1 = prepCanvas(im, 1600, false, 0);
     let r1 = ocrCodes((await worker.recognize(cv1)).data, cv1);
+    if(score(r1) < 3){
+      for(const tryRot of [90, 270]){
+        phase++; phases++;
+        st.textContent = "写真の向きを確認中…";
+        const cv = prepCanvas(im, 1600, false, tryRot);
+        const r = ocrCodes((await worker.recognize(cv)).data, cv);
+        if(score(r) > score(r1)){ r1 = r; cv1 = cv; rot = tryRot; }
+        if(score(r1) >= 3) break;
+      }
+      if(rot){ // 一覧の写真も立てた向きで表示
+        const t = document.createElement("canvas"), k = 240 / cv1.height;
+        t.width = Math.round(cv1.width * k); t.height = 240;
+        t.getContext("2d").drawImage(cv1, 0, 0, t.width, t.height);
+        const blob = await new Promise(r => t.toBlob(r, "image/jpeg", .8));
+        if(blob){ if(docPhotoUrl) URL.revokeObjectURL(docPhotoUrl); docPhotoUrl = URL.createObjectURL(blob); $("#ocrThumb").src = docPhotoUrl; }
+      }
+    }
     let found = r1;
     // チェックデジットが合わない番号があれば、解像度を変えてもう1回
     if(!r1.length || r1.some(c => !ean13ok(c.code))){
-      phase = 1; phases = 2;
-      const cv2 = prepCanvas(im, 2000, true);
+      phase++; phases++;
+      const cv2 = prepCanvas(im, 2000, true, rot);
       const r2 = ocrCodes((await worker.recognize(cv2)).data, cv2);
       const valid = new Map();
       [...r1, ...r2].forEach(c => { if(ean13ok(c.code) && !valid.has(c.code)) valid.set(c.code, c); });
