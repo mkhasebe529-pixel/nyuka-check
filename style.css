@@ -76,16 +76,26 @@ textarea{min-height:96px;font-size:14px}
 .result{display:flex;flex-direction:column;gap:8px}
 .result:empty{display:none}
 .result h3{margin:0;font-size:14px}
-.result ul{margin:0;padding-left:1.2em;font-family:var(--mono);font-size:14px}
+.result ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.result li{font-family:var(--mono);font-size:22px;letter-spacing:.04em;font-variant-numeric:tabular-nums;padding:6px 10px;border-radius:8px;background:var(--bg);overflow-wrap:anywhere}
+.result li b{font-size:26px}
+.result li .dim{color:var(--muted)}
+.result .cnt{font-weight:400;color:var(--muted);font-size:13px}
 .rv{font-size:18px;font-weight:700;padding:12px;border-radius:10px;text-align:center}
 .rv.ok{background:var(--ok-weak);color:var(--ok)} .rv.ng{background:var(--ng-weak);color:var(--ng)}
 
 .vh{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .tip{margin:0;font-size:13px;color:var(--muted)}
 label.btn{display:flex;align-items:center;justify-content:center}
-.ocr{display:flex;gap:12px;align-items:flex-start}
-.ocr img{width:84px;height:112px;object-fit:cover;border-radius:6px;border:1px solid var(--line);flex:0 0 auto;background:var(--bg)}
-.ocrside{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:8px}
+.ocr{display:flex;flex-direction:column;gap:8px}
+.ocrrow{display:flex;gap:14px;align-items:center}
+.ocr img{width:96px;height:128px;object-fit:cover;border-radius:6px;border:1px solid var(--line);flex:0 0 auto;background:var(--bg)}
+.ocrcount{flex:1 1 0;min-width:0;height:128px;display:flex;flex-direction:column;justify-content:center;line-height:1}
+.ocrcount .lbl{font-size:14px;color:var(--muted);font-weight:700;margin-bottom:4px}
+.ocrcount .num{display:flex;align-items:baseline;color:var(--ai);font-weight:700;white-space:nowrap}
+.ocrcount .num b{font-family:var(--mono);font-size:clamp(76px,27vw,112px);line-height:.95;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.ocrcount .unit{font-size:30px;margin-left:6px}
+.ocrcount.n3 .num b{font-size:clamp(56px,19vw,96px)}
 .bar.thin{height:6px}
 .bar.thin i{background:var(--ai)}
 .next{background:var(--ai);color:var(--on-ai);border-radius:12px;padding:12px 14px;font-weight:700;font-size:15px;display:flex;gap:10px;align-items:center}

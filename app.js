@@ -6,7 +6,7 @@
  */
 (() => {
 "use strict";
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.5.0";
 const STORE_KEY = "nyuka-check-v1";
 const $ = s => document.querySelector(s);
 
@@ -63,6 +63,9 @@ function render(){
   ].filter(Boolean).join("　");
   $("#barFill").style.width = n ? (done / n * 100) + "%" : "0";
   $("#startScan").disabled = !n;
+  $("#ocrNum").textContent = n;
+  $("#ocrCount").classList.toggle("n3", n >= 100);
+  $("#ocrCount").hidden = !n;
   $("#docAddBtn").hidden = !n;
   const ns = $("#nextStep"); ns.classList.toggle("done", !!n && done === n && !state.extras.length);
   let nTitle, nSub, nIcon;
@@ -398,7 +401,7 @@ async function readDoc(file, append){
   const st = $("#docStatus"), box = $("#ocrBox"), bar = $("#ocrBar");
   clearDocPhoto();
   box.hidden = false; st.className = "status";
-  $("#ocrBarWrap").hidden = false;
+  $("#ocrBarWrap").hidden = false; $("#ocrCount").hidden = true;
   const url = URL.createObjectURL(file); $("#ocrThumb").src = url; docPhotoUrl = url;
   $("#docBtn").classList.add("busy");
   try{
@@ -474,6 +477,7 @@ async function readDoc(file, append){
     st.textContent = (e && e.message ? e.message + "。" : "") + "読み取りに失敗しました。もう一度撮影するか、下の「貼り付け」をお使いください。";
   }finally{
     ocrProgress = null; $("#docBtn").classList.remove("busy");
+    $("#ocrCount").hidden = !state.items.length;
   }
 }
 $("#docInput").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if(f) readDoc(f, false); });
@@ -548,10 +552,11 @@ function showResult(){
   const ex = state.extras;
   const ok = state.items.length && !miss.length && !ex.length && !bad.length;
   let h = `<div class="rv ${ok ? "ok" : "ng"}">${ok ? `全 ${state.items.length} 点 漏れなし` : `未確認 ${miss.length} 点／リスト外 ${ex.length} 点`}</div>`;
-  if(miss.length) h += `<h3>未確認（伝票にあるが読み取っていない）</h3><ul>${miss.map(i => `<li>${esc(i.code)}</li>`).join("")}</ul>`;
-  if(ex.length) h += `<h3>リスト外（読み取ったが伝票にない）</h3><ul>${ex.map(c => `<li>${esc(c)}</li>`).join("")}</ul>`;
-  if(bad.length) h += `<h3>番号要確認（チェックデジット不一致）</h3><ul>${bad.map(i => `<li>${esc(i.code)}</li>`).join("")}</ul>`;
-  if(man.length) h += `<h3>手動で確認済にした商品</h3><ul>${man.map(i => `<li>${esc(i.code)}</li>`).join("")}</ul>`;
+  const li = c => `<li>${codeHtml(c)}</li>`;
+  if(miss.length) h += `<h3>未確認（伝票にあるが読み取っていない） <span class="cnt">${miss.length} 点</span></h3><ul>${miss.map(i => li(i.code)).join("")}</ul>`;
+  if(ex.length) h += `<h3>リスト外（読み取ったが伝票にない） <span class="cnt">${ex.length} 点</span></h3><ul>${ex.map(li).join("")}</ul>`;
+  if(bad.length) h += `<h3>番号要確認（チェックデジット不一致） <span class="cnt">${bad.length} 点</span></h3><ul>${bad.map(i => li(i.code)).join("")}</ul>`;
+  if(man.length) h += `<h3>手動で確認済にした商品 <span class="cnt">${man.length} 点</span></h3><ul>${man.map(i => li(i.code)).join("")}</ul>`;
   $("#result").innerHTML = h;
 }
 $("#checkBtn").addEventListener("click", showResult);
